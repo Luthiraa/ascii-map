@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ascii-map"
+version = "0.1.0"
+description = "A terminal-based ASCII map explorer"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+  {name = "User", email = "user@example.com"}
+]
+dependencies = [
+    "mapbox-vector-tile",
+    "requests",
+    "numpy",
+    "protobuf",
+]
+
+[project.scripts]
+ascii-map = "main:main_wrapper"
+
+[tool.setuptools]
+py-modules = ["main"]
+packages = ["maps"]

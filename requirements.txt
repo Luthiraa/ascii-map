@@ -1,0 +1,4 @@
+mapbox-vector-tile
+requests
+numpy
+protobuf
