@@ -1,7 +1,7 @@
 import os
 import concurrent.futures
 import requests
-import mapbox_vector_tile
+from maps import mvt_decoder
 # import env removed
 
 # Config (Move to a better place later)
@@ -64,7 +64,7 @@ def decode_tile(tile_bytes, z, x, y):
     try:
         # Vector tiles are encoded with Y increasing downward from the tile origin.
         # Keep that orientation so decoded geometry aligns with world/tile pixel math.
-        decoded = mapbox_vector_tile.decode(tile_bytes, default_options={"y_coord_down": True})
+        decoded = mvt_decoder.decode(tile_bytes, default_options={"y_coord_down": True})
         return decoded
     except Exception:
         return {}

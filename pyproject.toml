@@ -13,11 +13,7 @@ authors = [
   {name = "User", email = "user@example.com"}
 ]
 dependencies = [
-    "mapbox-vector-tile",
     "requests",
-    "protobuf",
-    "shapely",
-    "pyclipper",
 ]
 
 [project.scripts]
