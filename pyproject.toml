@@ -16,6 +16,8 @@ dependencies = [
     "mapbox-vector-tile",
     "requests",
     "protobuf",
+    "shapely",
+    "pyclipper",
 ]
 
 [project.scripts]
