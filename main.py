@@ -3,6 +3,7 @@ import locale
 import sys
 import warnings
 
+import requests
 import urllib3
 
 from maps import ascii_map
@@ -10,6 +11,8 @@ from maps import ascii_map
 locale.setlocale(locale.LC_ALL, "")
 urllib3.disable_warnings()
 warnings.filterwarnings("ignore")
+
+NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 
 START_LAT = 43.6446
 START_LON = -79.3849
@@ -165,6 +168,58 @@ def draw_frame(stdscr, top, left, width, height, attr=0):
     _safe_add(stdscr, top + height - 1, left, f"+{horizontal}+", width, attr)
 
 
+def geocode(query):
+    """Look up a place name and return (lat, lon, display_name) or None."""
+    try:
+        resp = requests.get(
+            NOMINATIM_URL,
+            params={"q": query, "format": "json", "limit": 1},
+            headers={"User-Agent": "ascii-map/0.1"},
+            timeout=5,
+        )
+        if resp.status_code == 200 and resp.json():
+            hit = resp.json()[0]
+            return float(hit["lat"]), float(hit["lon"]), hit.get("display_name", query)
+    except Exception:
+        pass
+    return None
+
+
+def search_prompt(stdscr, ui_attrs):
+    """Show a search bar at the bottom, return the typed query string."""
+    height, width = stdscr.getmaxyx()
+    prompt_y = height - 1
+    prompt_text = "Search: "
+    query = ""
+
+    curses.curs_set(1)
+    stdscr.nodelay(False)
+    stdscr.timeout(-1)
+
+    while True:
+        # Draw prompt bar
+        bar = (prompt_text + query).ljust(width - 1)
+        _safe_add(stdscr, prompt_y, 0, bar, width, ui_attrs.get("hint", curses.A_BOLD))
+        stdscr.move(prompt_y, min(len(prompt_text) + len(query), width - 1))
+        stdscr.refresh()
+
+        ch = stdscr.getch()
+        if ch in (curses.KEY_ENTER, 10, 13):
+            break
+        elif ch == 27:  # Escape
+            query = ""
+            break
+        elif ch in (curses.KEY_BACKSPACE, 127, 8):
+            query = query[:-1]
+        elif 32 <= ch <= 126:
+            query += chr(ch)
+
+    curses.curs_set(0)
+    stdscr.nodelay(True)
+    stdscr.timeout(30)
+    return query.strip()
+
+
 def main(stdscr):
     try:
         curses.curs_set(0)
@@ -180,6 +235,7 @@ def main(stdscr):
     zoom = START_ZOOM
     cell_aspect = DEFAULT_CELL_ASPECT
     show_street_names = True
+    search_status = ""
 
     while True:
         height, width = stdscr.getmaxyx()
@@ -200,6 +256,23 @@ def main(stdscr):
             cell_aspect = min(1.5, cell_aspect + 0.05)
         elif key in (ord("n"), ord("N")):
             show_street_names = not show_street_names
+        elif key == ord("/"):
+            query = search_prompt(stdscr, ui_attrs)
+            if query:
+                search_status = f"Searching: {query}..."
+                stdscr.erase()
+                _safe_add(stdscr, height // 2, width // 2 - len(search_status) // 2,
+                          search_status, max_cols, ui_attrs.get("hint", 0))
+                stdscr.refresh()
+                result = geocode(query)
+                if result:
+                    lat, lon, display_name = result
+                    zoom = 13
+                    search_status = f"Found: {display_name[:60]}"
+                else:
+                    search_status = f"Not found: {query}"
+            else:
+                search_status = ""
         elif key in (curses.KEY_UP, ord("w"), ord("W")):
             lat, lon = ascii_map.pan(lat, lon, zoom, "up", cell_aspect=cell_aspect)
         elif key in (curses.KEY_DOWN, ord("s"), ord("S")):
@@ -247,7 +320,7 @@ def main(stdscr):
             stdscr,
             1,
             0,
-            "Controls: WSAD/Arrows pan  +/- zoom  [ ] aspect  n names  r reset  q quit".ljust(max_cols),
+            "WSAD/Arrows pan  +/- zoom  / search  [ ] aspect  n names  r reset  q quit".ljust(max_cols),
             max_cols,
             ui_attrs["hint"],
         )
@@ -265,15 +338,18 @@ def main(stdscr):
         legend_y = frame_top + frame_height
         status_y = legend_y + 1
         _safe_add(stdscr, legend_y, 0, ascii_map.GLYPH_LEGEND.ljust(max_cols), max_cols, ui_attrs["meta"])
+        status_text = (
+            f"Zoom range {ascii_map.MIN_ZOOM}-{ascii_map.MAX_ZOOM}  "
+            f"Street names {'on' if show_street_names else 'off'}  "
+            f"Cached tiles {ascii_map.tile_cache_size()}"
+        )
+        if search_status:
+            status_text += f"  | {search_status}"
         _safe_add(
             stdscr,
             status_y,
             0,
-            (
-                f"Zoom range {ascii_map.MIN_ZOOM}-{ascii_map.MAX_ZOOM}  "
-                f"Street names {'on' if show_street_names else 'off'}  "
-                f"Cached tiles {ascii_map.tile_cache_size()}"
-            ).ljust(max_cols),
+            status_text.ljust(max_cols),
             max_cols,
             ui_attrs["meta"],
         )
